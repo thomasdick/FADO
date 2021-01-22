@@ -31,6 +31,11 @@ class ScipyDriver(ConstrainedOptimizationDriver):
         # list of constraints and variable bounds
         self._constraints = []
         self._bounds = []
+
+        # info for the second order approximation
+        self._hessianDir = ""
+        self._hessianFilename = []
+
     #end
 
     def preprocess(self):
@@ -166,5 +171,58 @@ class ScipyDriver(ConstrainedOptimizationDriver):
 
         return self._jac_g[:,idx]
     #end
-#end
 
+    # helper function to extract equality constraints out of scipy driver _eval_g
+    def eq_cons(self, x):
+        values = np.zeros(len(self._constraintsEQ))
+        for idx in range(len(self._constraintsEQ)):
+            values[idx] = self._eval_g(x, idx)
+        return values
+    #end of equal_cons
+
+    # helper function to extract inequality constraints out of scipy driver _eval_g
+    def ieq_cons(self, x):
+        values = np.zeros(len(self._constraintsGT))
+        for idx in range(len(self._constraintsGT)):
+            values[idx] = self._eval_g(x, idx + len(self._constraintsEQ))
+        return values
+    #end of equal_cons
+
+    # helper function to extract equality constraint gradients out of scipy driver _eval_jac_g
+    def eq_cons_grad(self, x):
+        values = np.zeros((len(self._constraintsEQ), self._nVar))
+        for idx in range(len(self._constraintsEQ)):
+            values[idx,:] = self._eval_jac_g(x, idx)
+        self._runAction(self._userPostProcessEqConGrad)
+        return values
+    #end of equal_cons
+
+    # helper function to extract inequality constraint gradients out of scipy driver _eval_jac_g
+    def ieq_cons_grad(self, x):
+        values = np.zeros((len(self._constraintsGT), self._nVar))
+        for idx in range(len(self._constraintsGT)):
+            values[idx,:] = self._eval_jac_g(x, idx + len(self._constraintsEQ))
+        self._runAction(self._userPostProcessIEqConGrad)
+        return values
+    #end of equal_cons
+
+    def hessian_eval_parameters(self, dir, filename):
+        self._hessianDir = dir
+        self._hessianFilename = filename
+    #end of hess_eval_parameters
+
+    def hess(self, x):
+        """Method passed to SciPy to get the objective function hessian."""
+        # Reads the approximated Hessian, which was evaluated in the gradient computation.
+        # runs the gradient computation if not done before
+
+        self.grad(x)
+        os.chdir(os.path.join(self._workDir,self._hessianDir))
+        # open file
+        hessfile = open(self._hessianFilename)
+        # read values
+        hess = np.loadtxt(hessfile,delimiter=",")
+        os.chdir(self._userDir)
+        return hess
+
+#end

@@ -84,6 +84,9 @@ class DriverBase:
         self._userPreProcessGrad = None
         self._userPostProcessFun = None
         self._userPostProcessGrad = None
+        self._userPostProcessEqConGrad = None
+        self._userPostProcessIEqConGrad = None
+
     #end
 
     def addObjective(self,type,function,scale=1.0,weight=1.0):
@@ -254,6 +257,14 @@ class DriverBase:
     def setUserPostProcessGrad(self,callableOrString):
         """Set a postprocessing action executed after evaluating function gradients."""
         self._userPostProcessGrad = callableOrString
+
+    def setUserPostProcessEqConGrad(self,callableOrString):
+        """Set a postprocessing action executed after evaluating function gradients."""
+        self._userPostProcessEqConGrad = callableOrString
+
+    def setUserPostProcessIEqConGrad(self,callableOrString):
+        """Set a postprocessing action executed after evaluating function gradients."""
+        self._userPostProcessIEqConGrad = callableOrString
 
     def _resetAllValueEvaluations(self):
         for obj in self._objectives:

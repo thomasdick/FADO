@@ -11,7 +11,7 @@ import cvxopt
 import csv
 
 
-def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieqcons, fdotdot, iter, acc, lsmode, xb=None):
+def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieqcons, fdotdot, iter, acc, lsmode, xb=None, driver=None):
     """ This is a implementation of a SQP optimizer
         It is written for smoothed derivatives
         Accepts:
@@ -46,7 +46,7 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
     # prepare output, using 'with' command to automatically close the file in case of exceptions
     with open("optimizer_history.csv", "w") as outfile:
         csv_writer = csv.writer(outfile, delimiter=',')
-        header = ['iter', 'objective function', 'equal constraint', 'inequal constraint', 'design', 'norm(gradient)', 'norm(delta_p)', 'lm_eqcons', 'lm_ieqcons', 'Lagrangian1', 'Lagrangian2','gradLagrangian1','gradLagrangian2']
+        header = ['iter', 'objective function', 'equal constraint', 'inequal constraint', 'design', 'norm(gradient)', 'norm(delta_p)', 'lm_eqcons', 'lm_ieqcons', 'Lagrangian1', 'Lagrangian2','gradLagrangian1','gradLagrangian2','nEval']
         csv_writer.writerow(header)
 
         # main optimizer loop
@@ -110,7 +110,12 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
             gradL2 = gradL1 + lm_ieqcons @ D_C
 
             # write to the history file
-            line = [step, F, E, C, p, np.linalg.norm(D_F, 2), err, lm_eqcons, lm_ieqcons, Lagrangian1, Lagrangian2, gradL1, gradL2]
+            if driver!=None:
+                nEval=driver._funEval
+            else:
+                nEval=0
+
+            line = [step, F, E, C, p, np.linalg.norm(D_F, 2), err, lm_eqcons, lm_ieqcons, Lagrangian1, Lagrangian2, gradL1, gradL2, nEval]
             csv_writer.writerow(line)
             outfile.flush()
 

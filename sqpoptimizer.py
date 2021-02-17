@@ -88,9 +88,15 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
             else:
                 sol = cvxopt.solvers.qp(P, q, G, h)
 
-            # line search
+            # extract values from the quadratic solver
             delta_p = np.array([i for i in sol['x']])
-            delta_p = linesearch(p, delta_p, F, func, E, f_eqcons, 0, 0, acc, lsmode)
+            lm_eqcons = np.array([i for i in sol['y']])
+            lm_ieqcons = np.zeros(np.size(C))
+            for i in range(np.size(C)):
+                lm_ieqcons[i] = sol['z'][i]
+
+            # line search
+            delta_p = linesearch(p, delta_p, F, func, E, f_eqcons, lm_eqcons, lm_ieqcons, acc, lsmode)
 
             # update the design
             p = p + delta_p
@@ -98,22 +104,16 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
 
             sys.stdout.write('New design: ' + str(p) + '\n')
 
-            # extract some values from the quadratic solver
-            lm_eqcons = np.array([i for i in sol['y']])
-            lm_ieqcons = np.zeros(np.size(C))
-            for i in range(np.size(C)):
-                lm_ieqcons[i] = sol['z'][i]
-
-            Lagrangian1 = F + np.inner(E,lm_eqcons)
-            Lagrangian2 = Lagrangian1 + np.inner(C,lm_ieqcons)
-            gradL1 = D_F + lm_eqcons @ D_E
-            gradL2 = gradL1 + lm_ieqcons @ D_C
-
             # write to the history file
             if driver!=None:
                 nEval=driver._funEval
             else:
                 nEval=0
+
+            Lagrangian1 = F + np.inner(E,lm_eqcons)
+            Lagrangian2 = Lagrangian1 + np.inner(C,lm_ieqcons)
+            gradL1 = D_F + lm_eqcons @ D_E
+            gradL2 = gradL1 + lm_ieqcons @ D_C
 
             line = [step, F, E, C, p, np.linalg.norm(D_F, 2), err, lm_eqcons, lm_ieqcons, Lagrangian1, Lagrangian2, gradL1, gradL2, nEval]
             csv_writer.writerow(line)
@@ -224,10 +224,11 @@ def linesearch(p, delta_p, F, func, E, f_eqcons, nu_old, nu_new, acc, lsmode):
 
     mode = lsmode
 
-    # use a constant reduction factor
+    # use a maximum step length
     if (mode >= 0.0):
-        delta_p = mode*delta_p
-        sys.stdout.write("descend step: " + str(delta_p) + "\n")
+        norm = np.linalg.norm(delta_p, 2)
+        if (norm>=mode):
+            delta_p = (mode/norm) * delta_p
 
     # backtracking based on objective function
     elif (mode == -1.0):

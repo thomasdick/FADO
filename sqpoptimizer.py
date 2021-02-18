@@ -22,17 +22,8 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
 
     sys.stdout.write('Using the hand implemented version. Setting up the environment...' + '\n')
 
-    # start by evaluating the the functions
-    p = x0
-    F = func(p)
-    E = f_eqcons(p)
-    C = f_ieqcons(p)
-    D_F = fprime(p)
-    D_E = fprime_eqcons(p)
-    D_C = fprime_ieqcons(p)
-    H_F = fdotdot(p)
-
     # set the inout parameters
+    p = x0
     err = 2*acc+1
     step = 1
 
@@ -46,7 +37,7 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
     # prepare output, using 'with' command to automatically close the file in case of exceptions
     with open("optimizer_history.csv", "w") as outfile:
         csv_writer = csv.writer(outfile, delimiter=',')
-        header = ['iter', 'objective function', 'equal constraint', 'inequal constraint', 'design', 'norm(gradient)', 'norm(delta_p)', 'lm_eqcons', 'lm_ieqcons', 'Lagrangian1', 'Lagrangian2','gradLagrangian1','gradLagrangian2','nEval']
+        header = ['iter', 'objective function', 'equal constraint', 'inequal constraint', 'design', 'norm(gradient)', 'norm(delta_p)', 'lm_eqcons', 'lm_ieqcons', 'Lagrangian','gradLagrangian','nEval']
         csv_writer.writerow(header)
 
         # main optimizer loop
@@ -54,15 +45,14 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
 
             sys.stdout.write('Optimizer iteration: ' + str(step) + '\n')
 
-            if step > 1:
-                # reevaluate the functions
-                F = func(p)
-                E = f_eqcons(p)
-                C = f_ieqcons(p)
-                D_F = fprime(p)
-                D_E = fprime_eqcons(p)
-                D_C = fprime_ieqcons(p)
-                H_F = fdotdot(p)
+            # evaluate the functions
+            F = func(p)
+            E = f_eqcons(p)
+            C = f_ieqcons(p)
+            D_F = fprime(p)
+            D_E = fprime_eqcons(p)
+            D_C = fprime_ieqcons(p)
+            H_F = fdotdot(p)
 
             # assemble equality constraints
             if np.size(E) > 0:
@@ -89,20 +79,31 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
                 sol = cvxopt.solvers.qp(P, q, G, h)
 
             # extract values from the quadratic solver
+            # maybe we should use negative sign because how the QP is set up
             delta_p = np.array([i for i in sol['x']])
             lm_eqcons = np.array([i for i in sol['y']])
             lm_ieqcons = np.zeros(np.size(C))
             for i in range(np.size(C)):
                 lm_ieqcons[i] = sol['z'][i]
 
+            # usually we would use the Lagrangian from last iteration, but in 1 step it is not available.
+            if (step==1):
+                Lagrangian = F + np.inner(E,lm_eqcons) + np.inner(C,lm_ieqcons)
+
             # line search
-            delta_p = linesearch(p, delta_p, F, func, E, f_eqcons, lm_eqcons, lm_ieqcons, acc, lsmode)
+            delta_p = linesearch(p, delta_p, F, Lagrangian, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode)
+
+            # update the Lagrangian for linesearch in the next iteration
+            Lagrangian = F + np.inner(E,lm_eqcons) + np.inner(C,lm_ieqcons)
+            gradL = D_F + lm_eqcons @ D_E + lm_ieqcons @ D_C
 
             # update the design
             p = p + delta_p
             err = np.linalg.norm(delta_p, 2)
 
             sys.stdout.write('New design: ' + str(p) + '\n')
+            if(err<=acc):
+                sys.stdout.write('Reached convergence criteria. \n')
 
             # write to the history file
             if driver!=None:
@@ -110,12 +111,7 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
             else:
                 nEval=0
 
-            Lagrangian1 = F + np.inner(E,lm_eqcons)
-            Lagrangian2 = Lagrangian1 + np.inner(C,lm_ieqcons)
-            gradL1 = D_F + lm_eqcons @ D_E
-            gradL2 = gradL1 + lm_ieqcons @ D_C
-
-            line = [step, F, E, C, p, np.linalg.norm(D_F, 2), err, lm_eqcons, lm_ieqcons, Lagrangian1, Lagrangian2, gradL1, gradL2, nEval]
+            line = [step, F, E, C, p, np.linalg.norm(D_F, 2), err, lm_eqcons, lm_ieqcons, Lagrangian, gradL, nEval]
             csv_writer.writerow(line)
             outfile.flush()
 
@@ -129,7 +125,7 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
 # end SQPconstrained
 
 
-def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter, acc, lsmode, xb=None):
+def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter, acc, lsmode, xb=None, driver=None):
     """ This is a implementation of a SQP optimizer
         It is written for smoothed derivatives
         Accepts:
@@ -140,26 +136,15 @@ def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter
 
     sys.stdout.write('Using the simplified hand implemented version for equality constraints. Setting up the environment...' + '\n')
 
-    # start by evaluating the the functions
-    p = x0
-    F = func(p)
-    E = f_eqcons(p)
-    D_F = fprime(p)
-    D_E = fprime_eqcons(p)
-    H_F = fdotdot(p)
-
     # set the inout parameters
-    nu = np.sign(E)
+    p = x0
     err = 2*acc+1
     step = 1
-
-    # compute the Lagrangian
-    L = F + np.dot(nu, E)
 
     # prepare output, using 'with' command to automatically close the file in case of exceptions
     with open("optimizer_history.csv", "w") as outfile:
         csv_writer = csv.writer(outfile, delimiter=',')
-        header = ['iter', 'objective function', 'equal constraint', 'Lagrange multiplier', 'design', 'norm(gradient)', 'norm(delta_p)']
+        header = ['iter', 'objective function', 'equal constraint', 'design', 'norm(gradient)', 'norm(delta_p)', 'lm_eqcons', 'Lagrangian', 'gradLagrangian', 'nEval']
         csv_writer.writerow(header)
 
         # main optimizer loop
@@ -167,22 +152,16 @@ def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter
 
             sys.stdout.write('Optimizer iteration: ' + str(step) + '\n')
 
-            if step > 1:
-                # reevaluate the functions
-                F = func(p)
-                E = f_eqcons(p)
-                D_F = fprime(p)
-                D_E = fprime_eqcons(p)
-                H_F = fdotdot(p)
-                L = F + np.dot(nu, E)
-
-            sys.stdout.write('objective function: ' + str(F) +
-                             ' , equality constrain: ' + str(E) +
-                             ' , Lagrangian: ' + str(L) + '\n')
+            # reevaluate the functions
+            F = func(p)
+            E = f_eqcons(p)
+            D_F = fprime(p)
+            D_E = fprime_eqcons(p)
+            H_F = fdotdot(p)
 
             # assemble linear equation system
             rhs = np.append([-D_F], [-E])
-            mat = np.block([[H_F, D_E.T], [D_E, 0]])
+            mat = np.block([[H_F, D_E.T], [D_E, np.zeros((np.size(E),np.size(E)))]])
 
             # solve the LES
             sol = np.linalg.solve(mat, rhs)
@@ -193,20 +172,34 @@ def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter
 
             # get the solution
             delta_p = sol[0:len(p)]
-            nu_temp = sol[-np.size(nu):]
+            lm_eqcons = sol[-np.size(E):]
+
+            # usually we would use the Lagrangian from last iteration, but in 1 step it is not available.
+            if (step==1):
+                Lagrangian = F + np.inner(E,lm_eqcons)
 
             # line search
-            delta_p = linesearch(p, delta_p, F, func, E, f_eqcons, nu, nu_temp, acc, lsmode)
+            delta_p = linesearch(p, delta_p, F, Lagrangian, func, f_eqcons, empty_func, lm_eqcons, 0, acc, lsmode)
+
+            # update the Lagrangian for linesearch in the next iteration
+            Lagrangian = F + np.inner(E,lm_eqcons)
+            gradL = D_F + lm_eqcons @ D_E
 
             # update the design
             p = p + delta_p
-            nu = nu_temp
             err = np.linalg.norm(delta_p, 2)
 
-            sys.stdout.write('Current design: ' + str(p) + ' , Lagrangian multiplier: ' + str(nu) + '\n')
+            sys.stdout.write('New design: ' + str(p) + '\n')
+            if(err<=acc):
+                sys.stdout.write('Reached convergence criteria. \n')
 
             # write to the history file
-            line = [step, F, E, nu, p, np.linalg.norm(D_F, 2), err]
+            if driver!=None:
+                nEval=driver._funEval
+            else:
+                nEval=0
+
+            line = [step, F, E, p, np.linalg.norm(D_F, 2), err, lm_eqcons, Lagrangian, gradL, nEval]
             csv_writer.writerow(line)
             outfile.flush()
 
@@ -220,7 +213,7 @@ def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter
 # end SQPequalconstrained
 
 
-def linesearch(p, delta_p, F, func, E, f_eqcons, nu_old, nu_new, acc, lsmode):
+def linesearch(p, delta_p, F, L, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode):
 
     mode = lsmode
 
@@ -237,10 +230,11 @@ def linesearch(p, delta_p, F, func, E, f_eqcons, nu_old, nu_new, acc, lsmode):
             p_temp = p + delta_p
             sys.stdout.write("descend step: " + str(delta_p) + "\n")
             F_new = func(p_temp)
+            sys.stdout.write("old objective: " + str(F) + " , new objective: " + str(F_new) + "\n")
             # test for optimization progress
             if (F_new > F):
                 sys.stdout.write("not a reduction in objective function. \n")
-                delta_p = 0.5*delta_p
+                delta_p = 0.1*delta_p
             else:
                 sys.stdout.write("descend step accepted. \n")
                 criteria = False
@@ -257,12 +251,13 @@ def linesearch(p, delta_p, F, func, E, f_eqcons, nu_old, nu_new, acc, lsmode):
             p_temp = p + delta_p
             F_new = func(p_temp)
             E_new = f_eqcons(p_temp)
-            L_new = F_new + np.dot(nu_new, E_new)
-            sys.stdout.write("new function: " + str(F_new) + " , new constraint: " + str(E_new) + " , new Lagrangian: " + str(L_new) + "\n")
+            C_new = f_ieqcons(p_temp)
+            L_new = F_new + np.dot(lm_eqcons, E_new) + np.dot(lm_ieqcons, C_new)
+            sys.stdout.write("old Lagrangian: " + str(L) + " , new Lagrangian: " + str(L_new) + "\n")
             # test for optimization progress
-            if (L_new > (F+nu_old*E)):
+            if (L_new > L):
                 sys.stdout.write("not a reduction in Lagrangian function. \n")
-                delta_p = 0.5*delta_p
+                delta_p = 0.1*delta_p
             else:
                 sys.stdout.write("descend step accepted. \n")
                 criteria = False
@@ -290,5 +285,5 @@ def unit_hessian(x):
 
 # we need an empty function call to have a dummy for optimization tests.
 def empty_func(x):
-    return []
+    return 0
 # end of empty_func

@@ -11,7 +11,7 @@ import cvxopt
 import csv
 
 
-def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieqcons, fdotdot, iter, acc, lsmode, xb=None, driver=None):
+def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieqcons, fdotdot, iter, acc, lsmode, xb=None, driver=None, feasibility_tolerance=1e-7):
     """ This is a implementation of a SQP optimizer
         It is written for smoothed derivatives
         Accepts:
@@ -74,9 +74,9 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
 
             # solve the interior quadratic problem
             if np.size(E) > 0:
-                sol = cvxopt.solvers.qp(P, q, G, h, A, b)
+                sol = cvxopt.solvers.qp(P, q, G, h, A, b, feastol=feasibility_tolerance)
             else:
-                sol = cvxopt.solvers.qp(P, q, G, h)
+                sol = cvxopt.solvers.qp(P, q, G, h, feastol=feasibility_tolerance)
 
             # extract values from the quadratic solver
             # maybe we should use negative sign because how the QP is set up

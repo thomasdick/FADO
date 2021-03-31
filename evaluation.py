@@ -19,6 +19,7 @@ import os
 import shutil
 import subprocess as sp
 
+import time
 
 class ExternalRun:
     """
@@ -130,6 +131,10 @@ class ExternalRun:
                     par.writeToFile(target)
                 for var in self._variables:
                     var.writeToFile(target)
+                while os.path.isfile(target)==False:
+                    time.wait(1)
+                    print("Waiting for config file.")
+
 
             self._createProcess()
             self._isIni = True

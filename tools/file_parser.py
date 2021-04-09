@@ -43,6 +43,9 @@ class LabelReplacer:
 
         with open(file,"w") as f:
             f.writelines(newLines)
+
+        #ensure closure
+        f.close()
      #end
 #end
 

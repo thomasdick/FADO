@@ -162,7 +162,6 @@ class Parameter:
         if self._function != None:
             value = self._function(value)
         self._parser.write(file,value)
-        file.close()
 
     def isAtTop(self):
         """Return True if the current value is the last."""

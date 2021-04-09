@@ -11,7 +11,7 @@ import cvxopt
 import csv
 
 
-def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieqcons, fdotdot, iter, acc, lsmode, xb=None, driver=None, feasibility_tolerance=1e-7):
+def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieqcons, fdotdot, iter, acc, lsmode, xb=None, driver=None, feasibility_tolerance=1e-7, force_feasibility=False, scale_hessian=False):
     """ This is a implementation of a SQP optimizer
         It is written for smoothed derivatives
         Accepts:
@@ -53,6 +53,11 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
             D_E = fprime_eqcons(p)
             D_C = fprime_ieqcons(p)
             H_F = fdotdot(p)
+
+            # adapt the scaling of H_F
+            if scale_hessian:
+                H_F = 0.5*(H_F+np.transpose(H_F))
+                H_F = H_F/np.linalg.norm(H_F,2)
 
             # assemble equality constraints
             if np.size(E) > 0:
@@ -114,6 +119,46 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
             line = [step, F, E, C, p, np.linalg.norm(D_F, 2), err, lm_eqcons, lm_ieqcons, Lagrangian, gradL, nEval]
             csv_writer.writerow(line)
             outfile.flush()
+
+            # additional step in direction of feasibility
+            if force_feasibility:
+                sys.stdout.write('Additional feasibility step:')
+
+                # evaluate the constraints in the new point
+                E = f_eqcons(p)
+                C = f_ieqcons(p)
+                D_E = fprime_eqcons(p)
+                D_C = fprime_ieqcons(p)
+
+                # assemble equality constraints
+                if np.size(E) > 0:
+                    A = cvxopt.matrix(D_E)
+                    b = cvxopt.matrix(-E)
+
+                # expand inequality constraints by bounds
+                Id = np.identity(len(p))
+                if np.size(C) > 0:
+                    G = cvxopt.matrix(np.block([[-D_C], [-Id], [Id]]))
+                    h = cvxopt.matrix(np.append(C,np.append( -np.array(xb[0]), np.array(xb[1]))))
+                else:
+                    G = cvxopt.matrix(np.block([[-Id], [Id]]))
+                    h = cvxopt.matrix(np.append( -np.array(xb[0]), np.array(xb[1])))
+
+                # minimize distance as objective function
+                P = cvxopt.matrix(Id)
+                q = cvxopt.matrix(np.zeros(len(p)))
+
+                # solve the interior quadratic problem
+                if np.size(E) > 0:
+                    sol = cvxopt.solvers.qp(P, q, G, h, A, b, feastol=feasibility_tolerance)
+                else:
+                    sol = cvxopt.solvers.qp(P, q, G, h, feastol=feasibility_tolerance)
+
+                delta_p = np.array([i for i in sol['x']])
+                norm = np.linalg.norm(delta_p, 2)
+                if (norm>=mode):
+                    delta_p = (mode/norm) * delta_p
+                p = p + delta_p
 
             # increase counter at the end of the loop
             step += 1

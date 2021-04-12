@@ -11,7 +11,7 @@ import cvxopt
 import csv
 
 
-def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieqcons, fdotdot, iter, acc, lsmode, xb=None, driver=None, feasibility_tolerance=1e-7, force_feasibility=False, scale_hessian=False):
+def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieqcons, fdotdot, iter, acc, lsmode, xb=None, driver=None, feasibility_tolerance=1e-7, force_feasibility=False, scale_hessian=False, hybrid_sobolev=False):
     """ This is a implementation of a SQP optimizer
         It is written for smoothed derivatives
         Accepts:
@@ -54,10 +54,16 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
             D_C = fprime_ieqcons(p)
             H_F = fdotdot(p)
 
+            # force Hessian to be symmetric
+            H_F = 0.5*(H_F+np.transpose(H_F))
+
             # adapt the scaling of H_F
             if scale_hessian:
-                H_F = 0.5*(H_F+np.transpose(H_F))
                 H_F = H_F/np.linalg.norm(H_F,2)
+
+            # experimental change
+            if hybrid_sobolev:
+                H_F = H_F + np.identity(len(p))
 
             # assemble equality constraints
             if np.size(E) > 0:
@@ -156,8 +162,8 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
 
                 delta_p = np.array([i for i in sol['x']])
                 norm = np.linalg.norm(delta_p, 2)
-                if (norm>=mode):
-                    delta_p = (mode/norm) * delta_p
+                if (norm>=lsmode):
+                    delta_p = (lsmode/norm) * delta_p
                 p = p + delta_p
 
             # increase counter at the end of the loop

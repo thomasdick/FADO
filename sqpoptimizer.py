@@ -274,6 +274,11 @@ def linesearch(p, delta_p, F, L, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcon
         if (norm>=mode):
             delta_p = (mode/norm) * delta_p
 
+    # use an increased step
+    elif (mode == -3.0):
+        norm = np.linalg.norm(delta_p, 2)
+        delta_p = 2 * delta_p
+
     # backtracking based on objective function
     elif (mode == -1.0):
         criteria = True

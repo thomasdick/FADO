@@ -9,9 +9,9 @@ import sys
 import numpy as np
 import cvxopt
 import csv
+from rsqpconfig import *
 
-
-def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieqcons, fdotdot, iter, acc, lsmode, xb=None, driver=None, feasibility_tolerance=1e-7, force_feasibility=False, scale_hessian=False, hybrid_sobolev=False):
+def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieqcons, fdotdot, iter, acc, lsmode, config, xb=None, driver=None):
     """ This is a implementation of a SQP optimizer
         It is written for smoothed derivatives
         Accepts:
@@ -52,18 +52,21 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
             D_F = fprime(p)
             D_E = fprime_eqcons(p)
             D_C = fprime_ieqcons(p)
+
+            # Hessian computation
             H_F = fdotdot(p)
-
-            # force Hessian to be symmetric
             H_F = 0.5*(H_F+np.transpose(H_F))
-
-            # adapt the scaling of H_F
-            if scale_hessian:
+            if config.scale_hessian:
                 H_F = H_F/np.linalg.norm(H_F,2)
 
-            # experimental change
-            if hybrid_sobolev:
-                H_F = H_F + np.identity(len(p))
+            if config.hybrid_sobolev:
+                if config.bfgs == None:
+                    H_F = H_F + np.identity(len(p))
+                else:
+                    if step > 1:
+                        config.bfgs.update(delta_p,(D_E-oldGrad).flatten())
+                    H_F = H_F + config.bfgs.get_matrix()
+                    oldGrad = D_E
 
             # assemble equality constraints
             if np.size(E) > 0:
@@ -85,9 +88,9 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
 
             # solve the interior quadratic problem
             if np.size(E) > 0:
-                sol = cvxopt.solvers.qp(P, q, G, h, A, b, feastol=feasibility_tolerance)
+                sol = cvxopt.solvers.qp(P, q, G, h, A, b, feastol=config.feasibility_tolerance)
             else:
-                sol = cvxopt.solvers.qp(P, q, G, h, feastol=feasibility_tolerance)
+                sol = cvxopt.solvers.qp(P, q, G, h, feastol=config.feasibility_tolerance)
 
             # extract values from the quadratic solver
             # maybe we should use negative sign because how the QP is set up
@@ -127,7 +130,7 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
             outfile.flush()
 
             # additional step in direction of feasibility
-            if force_feasibility:
+            if config.force_feasibility:
                 sys.stdout.write('Additional feasibility step:')
 
                 # evaluate the constraints in the new point
@@ -156,9 +159,9 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
 
                 # solve the interior quadratic problem
                 if np.size(E) > 0:
-                    sol = cvxopt.solvers.qp(P, q, G, h, A, b, feastol=feasibility_tolerance)
+                    sol = cvxopt.solvers.qp(P, q, G, h, A, b, feastol=config.feasibility_tolerance)
                 else:
-                    sol = cvxopt.solvers.qp(P, q, G, h, feastol=feasibility_tolerance)
+                    sol = cvxopt.solvers.qp(P, q, G, h, feastol=config.feasibility_tolerance)
 
                 delta_p = np.array([i for i in sol['x']])
                 norm = np.linalg.norm(delta_p, 2)

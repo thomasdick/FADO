@@ -63,10 +63,16 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
                 if config.bfgs == None:
                     H_F = H_F + np.identity(len(p))
                 else:
+                    # print this out for analysis purposes
+                    np.savetxt("H_F_{0}.csv".format(step), H_F, delimiter=",")
+
                     if step > 1:
-                        config.bfgs.update(delta_p,(D_E-oldGrad).flatten())
-                    H_F = H_F + config.bfgs.get_matrix()
+                        config.bfgs.update(delta_p, (D_E-oldGrad).flatten())
+                        H_F = H_F + lm_eqcons * config.bfgs.get_matrix()
                     oldGrad = D_E
+
+                    # print this out for analysis purposes
+                    np.savetxt("HESS_{0}.csv".format(step), H_F, delimiter=",")
 
             # assemble equality constraints
             if np.size(E) > 0:
@@ -105,7 +111,7 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
                 Lagrangian = F + np.inner(E,lm_eqcons) + np.inner(C,lm_ieqcons)
 
             # line search
-            delta_p = linesearch(p, delta_p, F, Lagrangian, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode)
+            delta_p = linesearch(p, delta_p, F, Lagrangian, D_F, D_E, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode, config)
 
             # update the Lagrangian for linesearch in the next iteration
             Lagrangian = F + np.inner(E,lm_eqcons) + np.inner(C,lm_ieqcons)
@@ -179,7 +185,7 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
 # end SQPconstrained
 
 
-def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter, acc, lsmode, xb=None, driver=None):
+def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter, acc, lsmode, config, xb=None, driver=None):
     """ This is a implementation of a SQP optimizer
         It is written for smoothed derivatives
         Accepts:
@@ -233,7 +239,7 @@ def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter
                 Lagrangian = F + np.inner(E,lm_eqcons)
 
             # line search
-            delta_p = linesearch(p, delta_p, F, Lagrangian, func, f_eqcons, empty_func, lm_eqcons, 0, acc, lsmode)
+            delta_p = linesearch(p, delta_p, F, Lagrangian, func, f_eqcons, empty_func, lm_eqcons, 0, acc, lsmode, config)
 
             # update the Lagrangian for linesearch in the next iteration
             Lagrangian = F + np.inner(E,lm_eqcons)
@@ -267,9 +273,42 @@ def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter
 # end SQPequalconstrained
 
 
-def linesearch(p, delta_p, F, L, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode):
+def linesearch(p, delta_p, F, L, D_F, D_E, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode, config):
 
     mode = lsmode
+
+    #merit function linesearch
+    if (config.meritfunction):
+
+        # guess the initial step
+        alpha = lsmode
+        p_new = p + alpha*delta_p
+
+        #calculate merit function??
+        M = merit(p, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, config.nu)
+        D_M = D_F
+        for i in range(np.size(f_eqcons(p))):
+            if f_eqcons(p)[i]>=0.0:
+                D_M = D_M + D_E[i] / config.nu
+            else:
+                D_M = D_M - D_E[i] / config.nu
+        M_new = merit(p_new, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, config.nu)
+
+        #reduce step and repeat
+        while M_new > M + 0.5*alpha*np.inner(delta_p,D_M):
+            alpha = alpha/5
+            p_new = p + alpha*delta_p
+            M_new = merit(p_new, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, config.nu)
+            # avoid the step getting too small
+            if alpha<1e-6:
+                break
+
+        #adapt nu
+        if config.nu < np.linalg.norm(lm_eqcons) + 0.025:
+            config.nu = 1/(np.linalg.norm(lm_eqcons)+0.05)
+
+        return delta_p
+    # end of merit function linesearch
 
     # use a maximum step length
     if (mode >= 0.0):
@@ -335,6 +374,11 @@ def linesearch(p, delta_p, F, L, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcon
 
 # end of linesearch
 
+#implementation of the merit function
+def merit(p, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, nu):
+    M = func(p) + np.linalg.norm(f_eqcons(p),1) /nu
+    return M
+#end of merit
 
 # we need a unit matrix to have a dummy for optimization tests.
 def unit_hessian(x):

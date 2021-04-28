@@ -16,5 +16,7 @@ class RSQPconfig:
         self.scale_hessian=False
         self.hybrid_sobolev=False
         self.bfgs=None
+        self.meritfunction=False
+        self.nu=0.001
 
     # end

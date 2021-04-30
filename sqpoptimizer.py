@@ -63,13 +63,12 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
                 if config.bfgs == None:
                     H_F = H_F + np.identity(len(p))
                 else:
-                    # print this out for analysis purposes
-                    np.savetxt("H_F_{0}.csv".format(step), H_F, delimiter=",")
-
                     if step > 1:
-                        config.bfgs.update(delta_p, (D_E-oldGrad).flatten())
-                        H_F = H_F + lm_eqcons * config.bfgs.get_matrix()
-                    oldGrad = D_E
+                        config.bfgs.update(delta_p, (D_F-oldDF).flatten())
+                        config.bfgscons.update(delta_p, (D_E-oldDE).flatten())
+                        H_F = config.bfgs.getmatrix() + lm_eqcons * config.bfgscons.get_matrix()
+                    oldDF = D_F
+                    oldDE = D_E
 
                     # print this out for analysis purposes
                     np.savetxt("HESS_{0}.csv".format(step), H_F, delimiter=",")

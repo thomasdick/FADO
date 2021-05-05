@@ -66,7 +66,7 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
                     if step > 1:
                         config.bfgs.update(delta_p, (D_F-oldDF).flatten())
                         config.bfgscons.update(delta_p, (D_E-oldDE).flatten())
-                        H_F = config.bfgs.getmatrix() + lm_eqcons * config.bfgscons.get_matrix()
+                        H_F = config.bfgs.get_matrix() + lm_eqcons * config.bfgscons.get_matrix()
                     oldDF = D_F
                     oldDE = D_E
 
@@ -306,7 +306,7 @@ def linesearch(p, delta_p, F, L, D_F, D_E, func, f_eqcons, f_ieqcons, lm_eqcons,
         if config.nu < np.linalg.norm(lm_eqcons) + 0.025:
             config.nu = 1/(np.linalg.norm(lm_eqcons)+0.05)
 
-        return delta_p
+        return alpha*delta_p
     # end of merit function linesearch
 
     # use a maximum step length

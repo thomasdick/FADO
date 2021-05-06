@@ -9,7 +9,7 @@ import sys
 import numpy as np
 import csv
 
-def analyzehessian(x0, func, f_eqcons, fprime, fprime_eqcons, fdstep):
+def analyzehessian(x0, func, f_eqcons, fprime, fprime_eqcons, fdstep, start, end):
     """ This is a implementation
         to calcuate Hessians with finite differences."""
 
@@ -22,7 +22,7 @@ def analyzehessian(x0, func, f_eqcons, fprime, fprime_eqcons, fdstep):
     D_F_data = np.zeros([len(p),len(p)])
     D_E_data = np.zeros([len(p),len(p)])
 
-    for dir in range(len(p)):
+    for dir in range(start, end):
 
         p = np.zeros(len(p))
         p[dir] = fdstep

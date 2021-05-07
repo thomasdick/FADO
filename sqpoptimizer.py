@@ -61,7 +61,7 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
 
             if config.hybrid_sobolev:
                 if config.bfgs == None:
-                    H_F = H_F + np.identity(len(p))
+                    H_F = H_F + config.epsilon3*np.identity(len(p))
                 else:
                     if step > 1:
                         config.bfgs.update(delta_p, ((D_F-oldDF).flatten()+lm_eqcons *(D_E-oldDE).flatten()))

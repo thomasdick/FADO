@@ -15,6 +15,7 @@ class RSQPconfig:
         self.force_feasibility=False
         self.scale_hessian=False
         self.hybrid_sobolev=False
+        self.epsilon3=1.0
         self.bfgs=None
         self.bfgscons=None
         self.meritfunction=False

@@ -19,6 +19,9 @@ class RSQPconfig:
         self.bfgs=None
         self.bfgscons=None
         self.meritfunction=False
-        self.nu=0.01
+        self.nu=17.85
+        self.delta=0.0025
 
-    # end
+    # end init
+
+# end RSQPconfig

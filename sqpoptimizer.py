@@ -302,8 +302,9 @@ def linesearch(p, delta_p, F, L, D_F, D_E, func, f_eqcons, f_ieqcons, lm_eqcons,
                 break
 
         #adapt nu
-        if config.nu < np.linalg.norm(lm_eqcons) + 0.025:
-            config.nu = 1/(np.linalg.norm(lm_eqcons)+0.05)
+        if (1/config.nu) > np.linalg.norm(lm_eqcons, np.inf) + config.delta:
+            config.nu = 1/(np.linalg.norm(lm_eqcons, np.inf) + 2*config.delta)
+            sys.stdout.write("new nu: " + str(nu) + "\n")
 
         return alpha*delta_p
     # end of merit function linesearch

@@ -10,6 +10,7 @@ import numpy as np
 import csv
 from ipoptconfig import *
 from ipoptproblemclass import *
+from ipoptfirstorderproblemclass import *
 import cyipopt
 
 def Ipoptimizer(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieqcons, fdotdot, config):
@@ -18,6 +19,9 @@ def Ipoptimizer(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieq
 
     # pack everything into a class
     opt_problem = IpoptProblemClass(func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieqcons, fdotdot, config)
+
+    if fdotdot == None:
+        opt_problem = IpoptFirstOrderProblemClass(func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieqcons)
 
     # get the boundary arrays
     lb = [config.lb]*config.nparam
@@ -29,12 +33,16 @@ def Ipoptimizer(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieq
 
     # call ipopt to create the problem
     nlp = cyipopt.Problem(n=config.nparam, m=(config.neqcons+config.nieqcons),
-                        problem_obj=opt_problem,
-                        lb=lb, ub=ub, cl=cl, cu=cu)
+                          problem_obj=opt_problem,
+                          lb=lb, ub=ub, cl=cl, cu=cu)
 
     # solve the problem
     x, info = nlp.solve(x0)
 
     return x
-
 #end of Ipoptimizer
+
+# we need a unit matrix to have a dummy for optimization tests.
+def unit_hessian(x):
+    return np.identity(np.size(x))
+# end of unit_hessian

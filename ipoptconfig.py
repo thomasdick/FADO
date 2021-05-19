@@ -16,6 +16,7 @@ class Ipoptconfig:
         self.ub=1.0
         self.lower=None
         self.upper=None
+        self.eps3=0.0
 
     # end init
 

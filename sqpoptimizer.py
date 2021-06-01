@@ -63,6 +63,10 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
                 if config.bfgs == None:
                     H_F = H_F + config.epsilon3*np.identity(len(p))
                 else:
+                    # testwise BFGS initialization???
+                    if step == 1:
+                        config.bfgs.B = H_F + config.epsilon3*np.identity(len(p))
+                        H_F = config.bfgs.get_matrix()
                     if step > 1:
                         config.bfgs.update(delta_p, ((D_F-oldDF).flatten()+lm_eqcons *(D_E-oldDE).flatten()))
                         H_F = config.bfgs.get_matrix()

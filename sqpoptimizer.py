@@ -37,7 +37,7 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
     # prepare output, using 'with' command to automatically close the file in case of exceptions
     with open("optimizer_history.csv", "w") as outfile:
         csv_writer = csv.writer(outfile, delimiter=',')
-        header = ['iter', 'objective function', 'equal constraint', 'inequal constraint', 'design', 'norm(gradient)', 'norm(delta_p)', 'lm_eqcons', 'lm_ieqcons', 'Lagrangian','gradLagrangian','nEval']
+        header = ['iter', 'objective function', 'equal constraint', 'inequal constraint', 'design', 'norm(fullstep)', 'norm(delta_p)', 'lm_eqcons', 'lm_ieqcons', 'Lagrangian','gradLagrangian','nEval']
         csv_writer.writerow(header)
 
         # main optimizer loop
@@ -107,6 +107,7 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
             lm_ieqcons = np.zeros(np.size(C))
             for i in range(np.size(C)):
                 lm_ieqcons[i] = sol['z'][i]
+            sol_length=np.linalg.norm(delta_p,2)
 
             # usually we would use the Lagrangian from last iteration, but in 1 step it is not available.
             if (step==1):
@@ -133,7 +134,7 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
             else:
                 nEval=0
 
-            line = [step, F, E, C, p, np.linalg.norm(D_F, 2), err, lm_eqcons, lm_ieqcons, Lagrangian, gradL, nEval]
+            line = [step, F, E, C, p, sol_length, err, lm_eqcons, lm_ieqcons, Lagrangian, gradL, nEval]
             csv_writer.writerow(line)
             outfile.flush()
 
@@ -206,7 +207,7 @@ def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter
     # prepare output, using 'with' command to automatically close the file in case of exceptions
     with open("optimizer_history.csv", "w") as outfile:
         csv_writer = csv.writer(outfile, delimiter=',')
-        header = ['iter', 'objective function', 'equal constraint', 'design', 'norm(gradient)', 'norm(delta_p)', 'lm_eqcons', 'Lagrangian', 'gradLagrangian', 'nEval']
+        header = ['iter', 'objective function', 'equal constraint', 'design', 'norm(fullstep)', 'norm(delta_p)', 'lm_eqcons', 'Lagrangian', 'gradLagrangian', 'nEval']
         csv_writer.writerow(header)
 
         # main optimizer loop
@@ -235,6 +236,7 @@ def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter
             # get the solution
             delta_p = sol[0:len(p)]
             lm_eqcons = sol[-np.size(E):]
+            sol_length = np.linalg.norm(delty_p,2)
 
             # usually we would use the Lagrangian from last iteration, but in 1 step it is not available.
             if (step==1):
@@ -261,7 +263,7 @@ def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter
             else:
                 nEval=0
 
-            line = [step, F, E, p, np.linalg.norm(D_F, 2), err, lm_eqcons, Lagrangian, gradL, nEval]
+            line = [step, F, E, p, sol_length, err, lm_eqcons, Lagrangian, gradL, nEval]
             csv_writer.writerow(line)
             outfile.flush()
 
@@ -328,7 +330,7 @@ def linesearch(p, delta_p, F, L, D_F, D_E, func, f_eqcons, f_ieqcons, lm_eqcons,
     if (mode >= 0.0):
         norm = np.linalg.norm(delta_p, 2)
         if (norm>=mode):
-            if (config.steps != None):
+            if (np.size(config.steps) != 0):
                 delta_p = (config.steps[step]/norm) * delta_p
             else:
                 delta_p = (mode/norm) * delta_p

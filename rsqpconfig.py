@@ -33,7 +33,7 @@ class RSQPconfig:
         self.rho=np.array([0])
 
         # linesearch options
-        self.steps=None
+        self.steps=np.array([])
 
     # end init
 

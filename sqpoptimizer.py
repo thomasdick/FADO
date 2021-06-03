@@ -113,7 +113,7 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
                 Lagrangian = F + np.inner(E,lm_eqcons) + np.inner(C,lm_ieqcons)
 
             # line search
-            delta_p = linesearch(p, delta_p, F, Lagrangian, D_F, D_E, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode, config)
+            delta_p = linesearch(p, delta_p, F, Lagrangian, D_F, D_E, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode, step, config)
 
             # update the Lagrangian for linesearch in the next iteration
             Lagrangian = F + np.inner(E,lm_eqcons) + np.inner(C,lm_ieqcons)
@@ -241,7 +241,7 @@ def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter
                 Lagrangian = F + np.inner(E,lm_eqcons)
 
             # line search
-            delta_p = linesearch(p, delta_p, F, Lagrangian, func, f_eqcons, empty_func, lm_eqcons, 0, acc, lsmode, config)
+            delta_p = linesearch(p, delta_p, F, Lagrangian, func, f_eqcons, empty_func, lm_eqcons, 0, acc, lsmode, step, config)
 
             # update the Lagrangian for linesearch in the next iteration
             Lagrangian = F + np.inner(E,lm_eqcons)
@@ -275,7 +275,7 @@ def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter
 # end SQPequalconstrained
 
 
-def linesearch(p, delta_p, F, L, D_F, D_E, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode, config):
+def linesearch(p, delta_p, F, L, D_F, D_E, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode, step, config):
 
     mode = lsmode
 
@@ -286,38 +286,52 @@ def linesearch(p, delta_p, F, L, D_F, D_E, func, f_eqcons, f_ieqcons, lm_eqcons,
         alpha = lsmode
         p_new = p + alpha*delta_p
 
-        #calculate merit function??
-        M = merit(p, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, config.nu)
-        D_M = D_F
-        for i in range(np.size(f_eqcons(p))):
-            if f_eqcons(p)[i]>=0.0:
-                D_M = D_M + D_E[i] / config.nu
-            else:
-                D_M = D_M - D_E[i] / config.nu
-        M_new = merit(p_new, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, config.nu)
-
-        #reduce step and repeat
-        while M_new > M + 0.5*alpha*np.inner(delta_p,D_M):
-            alpha = alpha/5
-            p_new = p + alpha*delta_p
+        # calculate merit function
+        # option 1: L1-norm
+        # option 2: SÖSQP type merit function
+        if (config.mfchoice == 1):
+            M = merit(p, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, config.nu)
+            D_M = D_F
+            for i in range(np.size(f_eqcons(p))):
+                if f_eqcons(p)[i]>=0.0:
+                    D_M = D_M + D_E[i] / config.nu
+                else:
+                    D_M = D_M - D_E[i] / config.nu
             M_new = merit(p_new, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, config.nu)
-            # avoid the step getting too small
-            if alpha<1e-6:
-                break
 
-        #adapt nu
-        if (1/config.nu) > np.linalg.norm(lm_eqcons, np.inf) + config.delta:
-            config.nu = 1/(np.linalg.norm(lm_eqcons, np.inf) + 2*config.delta)
-            sys.stdout.write("new nu: " + str(config.nu) + "\n")
+            #reduce step and repeat
+            while M_new > M + 0.5*alpha*np.inner(delta_p,D_M):
+                alpha = alpha/5
+                p_new = p + alpha*delta_p
+                M_new = merit(p_new, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, config.nu)
+                # avoid the step getting too small
+                if alpha<1e-6:
+                    break
 
-        return alpha*delta_p
+            #adapt nu
+            if (1/config.nu) > np.linalg.norm(lm_eqcons, np.inf) + config.delta:
+                config.nu = 1/(np.linalg.norm(lm_eqcons, np.inf) + 2*config.delta)
+                sys.stdout.write("new nu: " + str(config.nu) + "\n")
+
+            return alpha*delta_p
+
+        elif (config.mfchoice == 2):
+            M = merit2(p, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, config)
+
+
+
+            return alpha*delta_p
+
     # end of merit function linesearch
 
     # use a maximum step length
     if (mode >= 0.0):
         norm = np.linalg.norm(delta_p, 2)
         if (norm>=mode):
-            delta_p = (mode/norm) * delta_p
+            if (config.steps != None):
+                delta_p = (config.steps[step]/norm) * delta_p
+            else:
+                delta_p = (mode/norm) * delta_p
 
     # use an increased step
     elif (mode <= -3.0):
@@ -377,11 +391,26 @@ def linesearch(p, delta_p, F, L, D_F, D_E, func, f_eqcons, f_ieqcons, lm_eqcons,
 
 # end of linesearch
 
-#implementation of the merit function
+
+#implementation of the L1-norm merit function
 def merit(p, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, nu):
     M = func(p) + np.linalg.norm(f_eqcons(p),1) /nu
     return M
 #end of merit
+
+
+# implementation of the SLSQP style merit function
+def merit2(p, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, config):
+    M=func(p)
+    feq=f_eqcons(p)
+    fieq=f_ieqcons(p)
+    for i in range(np.size(feq)):
+        M += config.rho[i]*np.absolute(feq[i])
+    for j in range(np.size(feq)):
+        M += config.rho[j+np.size(feq)]*np.absolute( np.minimum( 0.0, fieq[j+np.size(feq)]) )
+    return M
+#end of merit
+
 
 # we need a unit matrix to have a dummy for optimization tests.
 def unit_hessian(x):

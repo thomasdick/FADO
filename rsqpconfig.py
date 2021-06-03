@@ -11,16 +11,29 @@ class RSQPconfig:
     """
 
     def __init__(self):
+
+        # scaling and feasibility options
         self.feasibility_tolerance=1e-7
         self.force_feasibility=False
         self.scale_hessian=False
+
+        # identity part of the Hessian operator
         self.hybrid_sobolev=False
         self.epsilon3=1.0
+
+        # BFGS options
         self.bfgs=None
         self.bfgscons=None
+
+        # merit function options
         self.meritfunction=False
+        self.mfchoice=1
         self.nu=17.85
         self.delta=0.0025
+        self.rho=np.array([0])
+
+        # linesearch options
+        self.steps=None
 
     # end init
 

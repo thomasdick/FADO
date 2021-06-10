@@ -338,13 +338,15 @@ def linesearch(p, delta_p, F, Lprev, D_F, D_E, D_C, func, f_eqcons, f_ieqcons, l
             alpha = -M / np.inner(D_M,delta_p/np.linalg.norm(delta_p))
             p_new = p + alpha*delta_p
             M_new = merit2(p_new, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, config)
-            while M_new > M + 0.5*alpha*np.inner(delta_p,D_M):
-                alpha = alpha/5
-                p_new = p + alpha*delta_p
+            count=1
+            while M_new > 1e-6:
+                alpha = -M_new / np.inner(D_M,delta_p/np.linalg.norm(delta_p))
+                p_new = p_new + alpha*delta_p
                 M_new = merit2(p_new, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, config)
-                # avoid the step getting too small
-                if alpha<1e-6:
+                # avoid too many Newton steps
+                if count>=5:
                     break
+                count=count+1
 
             return alpha*delta_p
 

@@ -111,13 +111,13 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
 
             # usually we would use the Lagrangian from last iteration, but in 1 step it is not available.
             if (step==1):
-                Lagrangian = F + np.inner(E,lm_eqcons) + np.inner(C,lm_ieqcons)
+                Lagrang = Lagrangian(p, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons)
 
             # line search
-            delta_p = linesearch(p, delta_p, F, Lagrangian, D_F, D_E, D_C, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode, step, config)
+            delta_p = linesearch(p, delta_p, F, Lagrang, D_F, D_E, D_C, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode, step, config)
 
             # update the Lagrangian for linesearch in the next iteration
-            Lagrangian = F + np.inner(E,lm_eqcons) + np.inner(C,lm_ieqcons)
+            Lagrang = Lagrangian(p, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons)
             gradL = D_F + lm_eqcons @ D_E + lm_ieqcons @ D_C
 
             # update the design
@@ -134,7 +134,7 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
             else:
                 nEval=0
 
-            line = [step, F, E, C, p, sol_length, err, lm_eqcons, lm_ieqcons, Lagrangian, gradL, nEval]
+            line = [step, F, E, C, p, sol_length, err, lm_eqcons, lm_ieqcons, Lagrang, gradL, nEval]
             csv_writer.writerow(line)
             outfile.flush()
 
@@ -247,7 +247,7 @@ def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter
 
             # update the Lagrangian for linesearch in the next iteration
             Lagrangian = F + np.inner(E,lm_eqcons)
-            gradL = D_F + lm_eqcons @ D_E
+            gradL = D_Lagrangian(p, D_F, D_E, D_C, f_ieqcons, lm_eqcons, lm_ieqcons)
 
             # update the design
             p = p + delta_p
@@ -277,7 +277,7 @@ def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter
 # end SQPequalconstrained
 
 
-def linesearch(p, delta_p, F, L, D_F, D_E, D_C, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode, step, config):
+def linesearch(p, delta_p, F, Lprev, D_F, D_E, D_C, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode, step, config):
 
     mode = lsmode
 
@@ -387,26 +387,37 @@ def linesearch(p, delta_p, F, L, D_F, D_E, D_C, func, f_eqcons, f_ieqcons, lm_eq
 
     # backtracking based on the Laplacian
     elif (mode == -2.0):
+
+        alpha = 0.06
+        orig_norm = np.linalg.norm(delta_p)
+
+        # get Lagrangian and sensitivity with current multipliers
+        L = Lagrangian(p, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons)
+        gradL = D_Lagrangian(p, D_F, D_E, D_C, f_ieqcons, lm_eqcons, lm_ieqcons)
+
         criteria = True
         while (criteria):
-            p_temp = p + delta_p
-            F_new = func(p_temp)
-            E_new = f_eqcons(p_temp)
-            C_new = f_ieqcons(p_temp)
-            L_new = F_new + np.dot(lm_eqcons, E_new) + np.dot(lm_ieqcons, C_new)
+
+            # compute Lagrangian at new position
+            p_temp = p + (alpha/orig_norm)*delta_p
+            L_new = Lagrangian(p_temp, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons)
+
             sys.stdout.write("old Lagrangian: " + str(L) + " , new Lagrangian: " + str(L_new) + "\n")
             # test for optimization progress
-            if (L_new > L):
+            if (L_new > L + 1e-4*(alpha/orig_norm)*np.inner(delta_p, gradL)):
                 sys.stdout.write("not a reduction in Lagrangian function. \n")
-                delta_p = 0.1*delta_p
+                alpha = alpha - 0.01
             else:
                 sys.stdout.write("descend step accepted. \n")
                 criteria = False
 
             #avoid step getting to small
-            if (np.linalg.norm(delta_p, 2) < acc):
+            if (alpha <= 0.0):
                 sys.stdout.write("can't find a good step. \n")
                 criteria = False
+                alpha=0.0
+
+        delta_p = (alpha/orig_norm)*delta_p
 
     # if unknown mode choosen, leave direction unaffected.
     else:
@@ -416,6 +427,37 @@ def linesearch(p, delta_p, F, L, D_F, D_E, D_C, func, f_eqcons, f_ieqcons, lm_eq
     return delta_p
 
 # end of linesearch
+
+
+# we need a unit matrix to have a dummy for optimization tests.
+def unit_hessian(x):
+    return np.identity(np.size(x))
+# end of unit_hessian
+
+
+# we need an empty function call to have a dummy for optimization tests.
+def empty_func(x):
+    return 0
+# end of empty_func
+
+
+def Lagrangian(p, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons):
+    Lvalue = func(p) + np.inner(f_eqcons(p), lm_eqcons)
+    fieq = f_ieqcons(p)
+    for j in range(np.size(fieq)):
+        Lvalue += lm_ieqcons[j]*np.minimum( 0.0, fieq[j])
+    return Lvalue
+#end Lagrangian
+
+
+def D_Lagrangian(p, D_F, D_E, D_C, f_ieqcons, lm_eqcons, lm_ieqcons):
+    gradLvalue = D_F + lm_eqcons @ D_E
+    fieq = f_ieqcons(p)
+    for j in range(np.size(fieq)):
+        if (fieq[j] <= 0.0):
+            gradLvalue += lm_ieqcons[j]*D_C[j,:]
+    return gradLvalue
+#end D_Lagrangian
 
 
 #implementation of the L1-norm merit function
@@ -432,7 +474,7 @@ def merit2(p, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, config):
     fieq = f_ieqcons(p)
     for i in range(np.size(feq)):
         M += config.rho[i]*np.absolute(feq[i])
-    for j in range(np.size(feq)):
+    for j in range(np.size(fieq)):
         M += config.rho[j+np.size(feq)]*np.absolute( np.minimum( 0.0, fieq[j]) )
     return M
 #end of merit2
@@ -448,20 +490,8 @@ def d_merit2(p, D_F, D_E, D_C, feq, fieq, config):
             D_M += config.rho[i]*D_E[i,:]
         else:
             D_M -= config.rho[i]*D_E[i,:]
-    for j in range(np.size(feq)):
+    for j in range(np.size(fieq)):
         if (fieq[j] <= 0.0):
             D_M -= config.rho[j+np.size(feq)]*D_C[j,:]
     return D_M
 #end of d_merit2
-
-
-# we need a unit matrix to have a dummy for optimization tests.
-def unit_hessian(x):
-    return np.identity(np.size(x))
-# end of unit_hessian
-
-
-# we need an empty function call to have a dummy for optimization tests.
-def empty_func(x):
-    return 0
-# end of empty_func

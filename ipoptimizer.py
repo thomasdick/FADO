@@ -36,6 +36,8 @@ def Ipoptimizer(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_ieq
                           problem_obj=opt_problem,
                           lb=lb, ub=ub, cl=cl, cu=cu)
 
+    nlp.addOption('nlp_scaling_method', 'none')
+
     # solve the problem
     x, info = nlp.solve(x0)
 

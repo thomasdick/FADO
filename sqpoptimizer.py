@@ -61,7 +61,10 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
 
             if config.hybrid_sobolev:
                 if config.bfgs == None:
-                    H_F = H_F + config.epsilon3*np.identity(len(p))
+                    if (np.size(config.epsilon3) > 1):
+                        H_F = H_F + config.epsilon3[step]*np.identity(len(p))
+                    else:
+                        H_F = H_F + config.epsilon3*np.identity(len(p))
                 else:
                     # testwise BFGS initialization???
                     if step == 1:
@@ -321,6 +324,8 @@ def linesearch(p, delta_p, F, Lprev, D_F, D_E, D_C, func, f_eqcons, f_ieqcons, l
             return alpha*delta_p
 
         elif (config.mfchoice == 2):
+
+            sys.stdout.write("Using SLSQP style merit function. \n")
 
             # evaluate the merit function
             feq = f_eqcons(p)

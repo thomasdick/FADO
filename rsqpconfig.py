@@ -34,6 +34,8 @@ class RSQPconfig:
 
         # linesearch options
         self.steps=np.array([])
+        self.lbtalpha=0.6
+        self.lbtdelta=0.1
 
     # end init
 

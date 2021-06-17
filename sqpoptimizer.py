@@ -395,7 +395,7 @@ def linesearch(p, delta_p, F, Lprev, D_F, D_E, D_C, func, f_eqcons, f_ieqcons, l
     # backtracking based on the Laplacian
     elif (mode == -2.0):
 
-        alpha = 0.06
+        alpha = config.lbtalpha
         orig_norm = np.linalg.norm(delta_p)
 
         # get Lagrangian and sensitivity with current multipliers
@@ -413,7 +413,7 @@ def linesearch(p, delta_p, F, Lprev, D_F, D_E, D_C, func, f_eqcons, f_ieqcons, l
             # test for optimization progress
             if (L_new > L + 1e-4*(alpha/orig_norm)*np.inner(delta_p, gradL)):
                 sys.stdout.write("not a reduction in Lagrangian function. \n")
-                alpha = alpha - 0.01
+                alpha = alpha - config.lbtdelta
             else:
                 sys.stdout.write("descend step accepted. \n")
                 criteria = False

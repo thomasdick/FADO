@@ -282,7 +282,10 @@ def SQPequalconstrained(x0, func, f_eqcons, fprime, fprime_eqcons, fdotdot, iter
 
 def linesearch(p, delta_p, F, Lprev, D_F, D_E, D_C, func, f_eqcons, f_ieqcons, lm_eqcons, lm_ieqcons, acc, lsmode, step, config):
 
-    mode = lsmode
+    if (np.size(config.steps) != 0):
+        mode = config.steps[step]
+    else:
+        mode = lsmode
 
     #merit function linesearch
     if (config.meritfunction):
@@ -361,10 +364,7 @@ def linesearch(p, delta_p, F, Lprev, D_F, D_E, D_C, func, f_eqcons, f_ieqcons, l
     if (mode >= 0.0):
         norm = np.linalg.norm(delta_p, 2)
         if (norm>=mode):
-            if (np.size(config.steps) != 0):
-                delta_p = (config.steps[step]/norm) * delta_p
-            else:
-                delta_p = (mode/norm) * delta_p
+            delta_p = (mode/norm) * delta_p
 
     # use an increased step
     elif (mode <= -3.0):

@@ -76,9 +76,6 @@ def SQPconstrained(x0, func, f_eqcons, f_ieqcons, fprime, fprime_eqcons, fprime_
                     oldDF = D_F
                     oldDE = D_E
 
-                    # print this out for analysis purposes
-                    np.savetxt("HESS_{0}.csv".format(step), H_F, delimiter=",")
-
             # assemble equality constraints
             if np.size(E) > 0:
                 A = cvxopt.matrix(D_E)
@@ -413,16 +410,16 @@ def linesearch(p, delta_p, F, Lprev, D_F, D_E, D_C, func, f_eqcons, f_ieqcons, l
             # test for optimization progress
             if (L_new > L + 1e-4*(alpha/orig_norm)*np.inner(delta_p, gradL)):
                 sys.stdout.write("not a reduction in Lagrangian function. \n")
-                alpha = alpha - config.lbtdelta
+                alpha = alpha / config.lbtdelta
             else:
                 sys.stdout.write("descend step accepted. \n")
                 criteria = False
 
             #avoid step getting to small
-            if (alpha <= 0.0):
+            if (alpha <= 1e-4):
                 sys.stdout.write("can't find a good step. \n")
                 criteria = False
-                alpha=0.0
+                alpha=1e-4
 
         delta_p = (alpha/orig_norm)*delta_p
 
